@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define NO_INLINE __attribute__((noinline))
 #define KTHREAD_MAX 64
 #define KTHREAD_STACK_SIZE (512 * 1024)
 #define DEBUG(STR, PARAMS...) (printf(STR "\n", ##PARAMS))
@@ -59,6 +60,7 @@ kThreadInitResult kThreadManager_Initialize();
 int kThreadManager_QueueThread(char*, kThreadFunc);
 void kThreadManager_Run();
 void kThreadManager_InvokeThread();
+void kThreadManager_Yield();
 void kThreadManager_Push(kThread* thread, intptr_t value);
 void kSystemThread();
 
@@ -130,12 +132,58 @@ kThread* kThreadManager_FindNextThread() {
 }
 
 void kThreadManager_InvokeThread() {
-  DEBUG("In InvokeThread");
+  DEBUG("InvokeThread: Enter");
+
+  kThread* thread;
+  kThreadFunc threadFunc;
+
+  asm(""
+      : "=a"(thread), "=b"(threadFunc)
+      :
+      :
+     );
+
+  threadFunc();
+
+  DEBUG("InvokeThread: Exit");
+
+  // TODO: Remove the thread from the thread table
 }
 
 void inline kThreadManager_Push(kThread* thread, intptr_t value) {
   thread->stackHead -= sizeof(intptr_t);
   *((intptr_t*)thread->stackHead) = value;
+}
+
+void NO_INLINE kThreadManager_Yield() {
+
+  // Save the state of the current thread
+  void* stackHead;
+
+  asm("\
+      pushl %%eax;    \
+      pushl %%ebx;    \
+      pushl %%ecx;    \
+      pushl %%edx;    \
+      # caller ebp    \
+      pushl 0(%%ebp); \
+      pushl %%esi;    \
+      pushl %%edi;    \
+      # caller eip    \
+      pushl 4(%%ebp); \
+      # return the stack head \
+      mov %%esp, %%eax \
+      "
+      : "=a"(stackHead)
+      : // we have no inputs
+      : // we clobber nothing
+     );
+
+  kThread* thisThread = &gThreadManagerState->threads[gThreadManagerState->runningThreadSlot];
+  thisThread->stackHead = stackHead;
+
+  // Woohoo, time to run another thread
+  kThreadManager_Run();
 }
 
 void kThreadManager_Run() {
@@ -210,5 +258,9 @@ int kThreadManager_QueueThread(char* name, kThreadFunc func) {
 }
 
 void kSystemThread() {
-  DEBUG("System thread running");
+  DEBUG("kSystemThread: Entered");
+  kThreadManager_Yield();
+  DEBUG("kSystemThread: Passed First Yield");
+  kThreadManager_Yield();
+  DEBUG("kSystemThread: Passed Second Yield, Going to Exit");
 }
