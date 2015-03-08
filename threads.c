@@ -7,7 +7,8 @@
 #define NO_INLINE __attribute__((noinline))
 #define KTHREAD_MAX 64
 #define KTHREAD_STACK_SIZE (512 * 1024)
-#define DEBUG(STR, PARAMS...) (printf(STR "\n", ##PARAMS))
+#define DEBUG(STR, PARAMS...) printf(STR "\n", ##PARAMS);
+#define BREAK() asm volatile("int $3":::);
 
 #define REGISTER_COUNT 9
 #define REGISTER_SIZE 4
@@ -106,29 +107,29 @@ int kThreadManager_FindAvailableSlot() {
   return -1;
 }
 
-kThread* kThreadManager_FindNextThread() {
+int kThreadManager_FindSlotIndexOfNextThread() {
   int runningThreadSlot = gThreadManagerState->runningThreadSlot;
 
   // Look for threads after the current thread
   for(int i = runningThreadSlot + 1; i < KTHREAD_MAX; i++) {
     if(gThreadManagerState->threads[i].tid != 0) {
-      return &gThreadManagerState->threads[i];
+      return i;
     }
   }
 
   // Look for threads before the current thread
   for(int i = 0; i < runningThreadSlot; i++) {
     if(gThreadManagerState->threads[i].tid != 0) {
-      return &gThreadManagerState->threads[i];
+      return i;
     }
   }
 
   // Fallback - run the current thread again
   if (runningThreadSlot >= 0) {
-    return &gThreadManagerState->threads[runningThreadSlot];
+    return runningThreadSlot;
   }
 
-  return NULL;
+  return -1;
 }
 
 void kThreadManager_InvokeThread() {
@@ -160,19 +161,46 @@ void NO_INLINE kThreadManager_Yield() {
   // Save the state of the current thread
   void* stackHead;
 
+  // NOTE: At this point, GCC will have:
+  //       - pushed the caller ebp on to the stack
+  //       - set ebp to esp
+  //       - allocated space for locals by offsetting
+  //         esp by some amount
+  //
+  //       We need to undo all of this
   asm("\
-      pushl %%eax;    \
-      pushl %%ebx;    \
-      pushl %%ecx;    \
-      pushl %%edx;    \
-      # caller ebp    \
-      pushl 0(%%ebp); \
-      pushl %%esi;    \
-      pushl %%edi;    \
-      # caller eip    \
-      pushl 4(%%ebp); \
-      # return the stack head \
-      mov %%esp, %%eax \
+      mov  %%ebp, %%esp;                      \
+      popl %%ebp;                             \
+      "
+      // NOTE: top of the stack will now be the
+      // callers return EIP
+      "                                       \
+      pushl %%eax;                            \
+      pushl %%ebx;                            \
+      pushl %%ecx;                            \
+      pushl %%edx;                            \
+      "
+      // NOTE: this is the callER ebp because
+      // we restored it at the start
+      "                                       \
+      pushl %%ebp;                            \
+      pushl %%esi;                            \
+      pushl %%edi;                            \
+      "
+      // set ebp to a safe value so the
+      // remaining C value doesn't clobber our
+      // beautiful construction
+      // return the stack head
+      "                                       \
+      mov %%esp, %%ebp;                       \
+      "
+      // HACK HACK HACK leave space for locals
+      "                                       \
+      sub $0x18, %%esp;                       \
+      "
+      // return the head of the stack
+      "                                       \
+      mov %%ebp, %%eax;                       \
       "
       : "=a"(stackHead)
       : // we have no inputs
@@ -187,11 +215,14 @@ void NO_INLINE kThreadManager_Yield() {
 }
 
 void kThreadManager_Run() {
-  kThread* nextThread = kThreadManager_FindNextThread();
+  int nextThreadSlotIndex = kThreadManager_FindSlotIndexOfNextThread();
+  kThread* nextThread = &gThreadManagerState->threads[nextThreadSlotIndex];
 
   DEBUG("Going to run thread %p", nextThread);
 
   DEBUG("Going to run thread with tid %d", nextThread->tid);
+
+  gThreadManagerState->runningThreadSlot = nextThreadSlotIndex;
 
   asm("\
       mov %%eax, %%esp; \
