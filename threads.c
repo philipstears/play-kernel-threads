@@ -311,8 +311,17 @@ int kThreadManager_QueueThread(char* name, kThreadFunc func) {
   return thread->tid;
 }
 
+void kChildThread() {
+  DEBUG("kChildThread: Entered, Yielding");
+  kThreadManager_Yield();
+  DEBUG("kChildThread: Passed First Yield");
+  kThreadManager_Yield();
+  DEBUG("kChildThread: Passed Second Yield, Going to Exit");
+}
+
 void kSystemThread() {
-  DEBUG("kSystemThread: Entered");
+  DEBUG("kSystemThread: Entered, Queuing Child and Yielding");
+  kThreadManager_QueueThread("Child", kChildThread);
   kThreadManager_Yield();
   DEBUG("kSystemThread: Passed First Yield");
   kThreadManager_Yield();
