@@ -51,7 +51,7 @@ kThreadInitResult kThreadManager_Initialize();
 int kThreadManager_QueueThread(char*, kThreadFunc);
 void kThreadManager_Run();
 void kThreadManager_InvokeThread();
-void kThreadManager_Yield();
+extern void kThreadManager_Yield();
 void kThreadManager_Push(kThread* thread, intptr_t value);
 void kSystemThread();
 
@@ -162,56 +162,7 @@ void inline kThreadManager_Push(kThread* thread, intptr_t value) {
   *((intptr_t*)thread->stackHead) = value;
 }
 
-void NO_INLINE kThreadManager_Yield() {
-
-  // Save the state of the current thread
-  void* stackHead;
-
-  // NOTE: At this point, GCC will have:
-  //       - pushed the caller ebp on to the stack
-  //       - set ebp to esp
-  //       - allocated space for locals by offsetting
-  //         esp by some amount
-  //
-  //       We need to undo all of this
-  asm("\
-      mov  %%ebp, %%esp;                      \
-      popl %%ebp;                             \
-      "
-      // NOTE: top of the stack will now be the
-      // callers return EIP
-      "                                       \
-      pushl %%eax;                            \
-      pushl %%ebx;                            \
-      pushl %%ecx;                            \
-      pushl %%edx;                            \
-      "
-      // NOTE: this is the callER ebp because
-      // we restored it at the start
-      "                                       \
-      pushl %%ebp;                            \
-      pushl %%esi;                            \
-      pushl %%edi;                            \
-      "
-      // set ebp to a safe value so the
-      // remaining C value doesn't clobber our
-      // beautiful construction
-      // return the stack head
-      "                                       \
-      mov %%esp, %%ebp;                       \
-      "
-      // HACK HACK HACK leave space for locals
-      "                                       \
-      sub $0x18, %%esp;                       \
-      "
-      // return the head of the stack
-      "                                       \
-      mov %%ebp, %%eax;                       \
-      "
-      : "=a"(stackHead)
-      : // we have no inputs
-      : // we clobber nothing
-     );
+void kThreadManager_Yield_Core(void* stackHead) {
 
   kThread* thisThread = &gThreadManagerState->threads[gThreadManagerState->runningThreadSlot];
   thisThread->stackHead = stackHead;

@@ -12,8 +12,14 @@ debug: all
 clean:
 	rm -r bin/*
 
-bin/threads: threads.c
-	$(CC) -o $@ $<
+bin/threads: bin/threads.c.o bin/threads.s.o
+	$(CC) -o $@ $^
+
+bin/threads.c.o: threads.c
+	$(CC) -o $@ -c $^
+
+bin/threads.s.o: threads.s
+	nasm -f elf32 -o $@ $^
 
 TAGS: *.c
 	etags $<
