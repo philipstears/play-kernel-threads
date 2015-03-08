@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "threads.h"
+
 #define NO_INLINE __attribute__((noinline))
 #define KTHREAD_MAX 64
 #define KTHREAD_STACK_SIZE (512 * 1024)
@@ -16,7 +18,6 @@
  * Types
  *
  */
-typedef void (*kThreadFunc)();
 
 typedef struct {
   // NOTE: tid zero is reserved for the idle process and never
@@ -48,10 +49,8 @@ typedef enum {
  *
  */
 kThreadInitResult kThreadManager_Initialize();
-int kThreadManager_QueueThread(char*, kThreadFunc);
 void kThreadManager_Run();
 void kThreadManager_InvokeThread();
-extern void kThreadManager_Yield();
 void kThreadManager_Push(kThread* thread, intptr_t value);
 void kSystemThread();
 
