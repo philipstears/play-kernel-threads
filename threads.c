@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 #define NO_INLINE __attribute__((noinline))
 #define KTHREAD_MAX 64
@@ -86,6 +87,8 @@ int main(int argc, char* argv[]) {
  * Thread Manager
  *
  */
+#define INVALID_THREAD_ID 0
+
 kThreadInitResult kThreadManager_Initialize() {
   gThreadManagerState = (kThreadManagerState*)calloc(1, sizeof(kThreadManagerState));
   gThreadManagerState->runningThreadSlot = -1;
@@ -99,7 +102,7 @@ kThreadInitResult kThreadManager_Initialize() {
 
 int kThreadManager_FindAvailableSlot() {
   for ( int i = 0; i < KTHREAD_MAX; i++ ) {
-    if (gThreadManagerState->threads[i].tid == 0) {
+    if (gThreadManagerState->threads[i].tid == INVALID_THREAD_ID) {
       return i;
     }
   }
@@ -109,32 +112,36 @@ int kThreadManager_FindAvailableSlot() {
 
 int kThreadManager_FindSlotIndexOfNextThread() {
   int runningThreadSlot = gThreadManagerState->runningThreadSlot;
+  kThread* threads = gThreadManagerState->threads;
 
   // Look for threads after the current thread
   for(int i = runningThreadSlot + 1; i < KTHREAD_MAX; i++) {
-    if(gThreadManagerState->threads[i].tid != 0) {
+    if(threads[i].tid != INVALID_THREAD_ID) {
       return i;
     }
   }
 
   // Look for threads before the current thread
   for(int i = 0; i < runningThreadSlot; i++) {
-    if(gThreadManagerState->threads[i].tid != 0) {
+    if(threads[i].tid != INVALID_THREAD_ID) {
       return i;
     }
   }
 
   // Fallback - run the current thread again
   if (runningThreadSlot >= 0) {
-    return runningThreadSlot;
+    if (threads[runningThreadSlot].tid != INVALID_THREAD_ID) {
+      return runningThreadSlot;
+    }
+
+    DEBUG("The currently running thread is no longer valid, and no other threads are available to run");
+    gThreadManagerState->runningThreadSlot = -1;
   }
 
   return -1;
 }
 
 void kThreadManager_InvokeThread() {
-  DEBUG("InvokeThread: Enter");
-
   kThread* thread;
   kThreadFunc threadFunc;
 
@@ -144,11 +151,21 @@ void kThreadManager_InvokeThread() {
       :
      );
 
+  DEBUG("InvokeThread: Running thread func %p for thread %p", threadFunc, thread);
+
   threadFunc();
 
   DEBUG("InvokeThread: Exit");
 
-  // TODO: Remove the thread from the thread table
+  // Ditch the thread data, note we don't
+  // set gThreadManagerState->runningSlotIndex because
+  // that would defeat scheduling fairness
+  DEBUG("InvokeThread: Exit -> Disabling running thread");
+  thread->tid = INVALID_THREAD_ID;
+
+  // Run another thread :-)
+  DEBUG("InvokeThread: Exit -> About to schedule next thread");
+  kThreadManager_Run();
 }
 
 void inline kThreadManager_Push(kThread* thread, intptr_t value) {
@@ -216,6 +233,12 @@ void NO_INLINE kThreadManager_Yield() {
 
 void kThreadManager_Run() {
   int nextThreadSlotIndex = kThreadManager_FindSlotIndexOfNextThread();
+
+  if (nextThreadSlotIndex < 0) {
+    DEBUG("No more threads to run, exiting...");
+    exit(0);
+  }
+
   kThread* nextThread = &gThreadManagerState->threads[nextThreadSlotIndex];
 
   DEBUG("Going to run thread %p", nextThread);
