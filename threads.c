@@ -11,17 +11,6 @@
 #define DEBUG(STR, PARAMS...) printf(STR "\n", ##PARAMS);
 #define BREAK() asm volatile("int $3":::);
 
-#define REGISTER_COUNT 9
-#define REGISTER_SIZE 4
-#define EIP (0)
-#define EAX (EIP + REGISTER_SIZE)
-#define EBX (EAX + REGISTER_SIZE)
-#define ECX (EBX + REGISTER_SIZE)
-#define EDX (ECX + REGISTER_SIZE)
-#define EBP (EDX + REGISTER_SIZE)
-#define ESI (EBP + REGISTER_SIZE)
-#define EDI (ESI + REGISTER_SIZE)
-
 /*
  *
  * Types
