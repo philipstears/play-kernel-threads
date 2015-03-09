@@ -31,7 +31,7 @@ typedef struct {
 
 typedef struct {
   kThread     threads[KTHREAD_MAX];
-  int         lastPid;
+  int         lastTid;
   int         runningThreadSlot;
 } kThreadManagerState;
 
@@ -214,7 +214,7 @@ int kThreadManager_QueueThread(char* name, kThreadFunc func, int stackSize) {
     return -1;
   }
 
-  int tid = ++gThreadManagerState->lastPid;
+  int tid = ++gThreadManagerState->lastTid;
 
   DEBUG("Allocating thread with tid %d to slot %d", tid, slotIndex);
 
