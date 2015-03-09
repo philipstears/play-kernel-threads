@@ -6,88 +6,13 @@
 #include <stdlib.h>
 
 #include "threads.h"
+#include "utility.h"
 
-#define NO_INLINE __attribute__((noinline))
-#define KTHREAD_MAX 64
-#define DEBUG(STR, PARAMS...) printf(STR "\n", ##PARAMS);
-#define BREAK() asm volatile("int $3":::);
+// Forward declarations
+static void kThreadManager_InvokeThread();
+static void kThreadManager_Push(kThread* thread, intptr_t value);
 
-/*
- *
- * Types
- *
- */
-
-typedef struct {
-  // NOTE: tid zero is reserved for the idle process and never
-  //       appears in the thread list, therefore we use tid zero
-  //       to indicate that a slot in the thread table is
-  //       free
-  int         tid;
-  char*       name;
-  void*       stack;
-  void*       stackHead;
-} kThread;
-
-typedef struct {
-  kThread     threads[KTHREAD_MAX];
-  int         lastTid;
-  int         runningThreadSlot;
-} kThreadManagerState;
-
-kThreadManagerState* gThreadManagerState;
-
-typedef enum {
-  kThreadInitResult_Success = 0,
-  kThreadInitResult_Fail = 1
-} kThreadInitResult;
-
-/*
- *
- * Forward Declarations
- *
- */
-kThreadInitResult kThreadManager_Initialize();
-void kThreadManager_Run();
-void kThreadManager_InvokeThread();
-void kThreadManager_Push(kThread* thread, intptr_t value);
-void kSystemThread();
-
-/*
- *
- * Main
- *
- */
-int main(int argc, char* argv[]) {
-  DEBUG("Hello, kThread world!");
-
-  kThreadManager_Initialize();
-  kThreadManager_QueueThread("System Thread", kSystemThread, KTHREAD_STACK_SMALL);
-  kThreadManager_Run();
-
-  DEBUG("All threads have terminated, kernel (lol) exiting");
-  return 0;
-}
-
-/*
- *
- * Thread Manager
- *
- */
-#define INVALID_THREAD_ID 0
-
-kThreadInitResult kThreadManager_Initialize() {
-  gThreadManagerState = (kThreadManagerState*)calloc(1, sizeof(kThreadManagerState));
-  gThreadManagerState->runningThreadSlot = -1;
-  if (gThreadManagerState == 0) {
-    DEBUG("Failed to initialize thread state");
-    return kThreadInitResult_Fail;
-  }
-
-  return kThreadInitResult_Success;
-}
-
-int kThreadManager_FindAvailableSlot() {
+static int kThreadManager_FindAvailableSlot() {
   for ( int i = 0; i < KTHREAD_MAX; i++ ) {
     if (gThreadManagerState->threads[i].tid == INVALID_THREAD_ID) {
       return i;
@@ -97,7 +22,7 @@ int kThreadManager_FindAvailableSlot() {
   return -1;
 }
 
-int kThreadManager_FindSlotIndexOfNextThread() {
+static int kThreadManager_FindSlotIndexOfNextThread() {
   int runningThreadSlot = gThreadManagerState->runningThreadSlot;
   kThread* threads = gThreadManagerState->threads;
 
@@ -128,7 +53,7 @@ int kThreadManager_FindSlotIndexOfNextThread() {
   return -1;
 }
 
-void kThreadManager_InvokeThread() {
+static void kThreadManager_InvokeThread() {
   kThread* thread;
   kThreadFunc threadFunc;
 
@@ -155,9 +80,20 @@ void kThreadManager_InvokeThread() {
   kThreadManager_Run();
 }
 
-void inline kThreadManager_Push(kThread* thread, intptr_t value) {
+static void inline kThreadManager_Push(kThread* thread, intptr_t value) {
   thread->stackHead -= sizeof(intptr_t);
   *((intptr_t*)thread->stackHead) = value;
+}
+
+kThreadInitResult kThreadManager_Initialize() {
+  gThreadManagerState = (kThreadManagerState*)calloc(1, sizeof(kThreadManagerState));
+  gThreadManagerState->runningThreadSlot = -1;
+  if (gThreadManagerState == 0) {
+    DEBUG("Failed to initialize thread state");
+    return kThreadInitResult_Fail;
+  }
+
+  return kThreadInitResult_Success;
 }
 
 void kThreadManager_Yield_Core(void* stackHead) {
@@ -247,21 +183,4 @@ int kThreadManager_QueueThread(char* name, kThreadFunc func, int stackSize) {
   /* EDI */ kThreadManager_Push(thread, 0);
 
   return thread->tid;
-}
-
-void kChildThread() {
-  DEBUG("kChildThread: Entered, Yielding");
-  kThreadManager_Yield();
-  DEBUG("kChildThread: Passed First Yield");
-  kThreadManager_Yield();
-  DEBUG("kChildThread: Passed Second Yield, Going to Exit");
-}
-
-void kSystemThread() {
-  DEBUG("kSystemThread: Entered, Queuing Child and Yielding");
-  kThreadManager_QueueThread("Child", kChildThread, KTHREAD_STACK_SMALL);
-  kThreadManager_Yield();
-  DEBUG("kSystemThread: Passed First Yield");
-  kThreadManager_Yield();
-  DEBUG("kSystemThread: Passed Second Yield, Going to Exit");
 }

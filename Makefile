@@ -12,11 +12,14 @@ debug: all
 clean:
 	rm -r bin/*
 
-bin/threads: bin/threads.c.o bin/threads.s.o
+bin/threads: bin/threads.c.o bin/threads.s.o bin/main.c.o
 	$(CC) -o $@ $^
 
-bin/threads.c.o: threads.c
-	$(CC) -o $@ -c $^
+bin/main.c.o: main.c threads.h utility.h
+	$(CC) -o $@ -c $<
+
+bin/threads.c.o: threads.c threads.h utility.h
+	$(CC) -o $@ -c $<
 
 bin/threads.s.o: threads.s
 	nasm -f elf32 -o $@ $^
