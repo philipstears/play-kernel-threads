@@ -1,10 +1,10 @@
 ; vim: ft=nasm
 section .data
 
-global kThreadManager_Yield
-extern kThreadManager_Yield_Core
+global kThread_Yield
+extern kThread_Yield_Core
 
-kThreadManager_Yield:
+kThread_Yield:
   push eax
   push ebx
   push ecx
@@ -14,4 +14,4 @@ kThreadManager_Yield:
   push edi
 
   push esp
-  call kThreadManager_Yield_Core
+  call kThread_Yield_Core

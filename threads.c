@@ -5,12 +5,28 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "threadManager.h"
 #include "threads.h"
 #include "utility.h"
 
-// Forward declarations
-static void kThreadManager_InvokeThread();
-static void kThreadManager_Push(kThread* thread, intptr_t value);
+typedef struct {
+  // NOTE: tid zero is reserved for the idle process and never
+  //       appears in the thread list, therefore we use tid zero
+  //       to indicate that a slot in the thread table is
+  //       free
+  int         tid;
+  char*       name;
+  void*       stack;
+  void*       stackHead;
+} kThread;
+
+typedef struct {
+  kThread     threads[KTHREAD_MAX];
+  int         lastTid;
+  int         runningThreadSlot;
+} kThreadManagerState;
+
+kThreadManagerState* gThreadManagerState;
 
 static int kThreadManager_FindAvailableSlot() {
   for ( int i = 0; i < KTHREAD_MAX; i++ ) {
@@ -77,7 +93,7 @@ static void kThreadManager_InvokeThread() {
 
   // Run another thread :-)
   DEBUG("InvokeThread: Exit -> About to schedule next thread");
-  kThreadManager_Run();
+  kThreadManager_Next();
 }
 
 static void inline kThreadManager_Push(kThread* thread, intptr_t value) {
@@ -96,16 +112,16 @@ kThreadInitResult kThreadManager_Initialize() {
   return kThreadInitResult_Success;
 }
 
-void kThreadManager_Yield_Core(void* stackHead) {
+void kThread_Yield_Core(void* stackHead) {
 
   kThread* thisThread = &gThreadManagerState->threads[gThreadManagerState->runningThreadSlot];
   thisThread->stackHead = stackHead;
 
   // Woohoo, time to run another thread
-  kThreadManager_Run();
+  kThreadManager_Next();
 }
 
-void kThreadManager_Run() {
+void kThreadManager_Next() {
   int nextThreadSlotIndex = kThreadManager_FindSlotIndexOfNextThread();
 
   if (nextThreadSlotIndex < 0) {
@@ -141,7 +157,7 @@ void kThreadManager_Run() {
   DEBUG("Gosh darn everything, we really oughn't to be here dear");
 }
 
-int kThreadManager_QueueThread(char* name, kThreadFunc func, int stackSize) {
+int kThread_Queue(char* name, kThreadFunc func, int stackSize) {
 
   int slotIndex = kThreadManager_FindAvailableSlot();
 
