@@ -9,7 +9,6 @@
 
 #define NO_INLINE __attribute__((noinline))
 #define KTHREAD_MAX 64
-#define KTHREAD_STACK_SIZE (512 * 1024)
 #define DEBUG(STR, PARAMS...) printf(STR "\n", ##PARAMS);
 #define BREAK() asm volatile("int $3":::);
 
@@ -63,7 +62,7 @@ int main(int argc, char* argv[]) {
   DEBUG("Hello, kThread world!");
 
   kThreadManager_Initialize();
-  kThreadManager_QueueThread("System Thread", kSystemThread);
+  kThreadManager_QueueThread("System Thread", kSystemThread, KTHREAD_STACK_SMALL);
   kThreadManager_Run();
 
   DEBUG("All threads have terminated, kernel (lol) exiting");
@@ -206,7 +205,7 @@ void kThreadManager_Run() {
   DEBUG("Gosh darn everything, we really oughn't to be here dear");
 }
 
-int kThreadManager_QueueThread(char* name, kThreadFunc func) {
+int kThreadManager_QueueThread(char* name, kThreadFunc func, int stackSize) {
 
   int slotIndex = kThreadManager_FindAvailableSlot();
 
@@ -227,8 +226,8 @@ int kThreadManager_QueueThread(char* name, kThreadFunc func) {
   thread->tid = tid;
 
   // Construct the initial thread stack
-  thread->stack = calloc(KTHREAD_STACK_SIZE, 1);
-  thread->stackHead = thread->stack + KTHREAD_STACK_SIZE;
+  thread->stack = calloc(stackSize, 1);
+  thread->stackHead = thread->stack + stackSize;
 
   // Insert a null pointer at the top of the stack, so
   // that we can a seg fault if we return from the top
@@ -260,7 +259,7 @@ void kChildThread() {
 
 void kSystemThread() {
   DEBUG("kSystemThread: Entered, Queuing Child and Yielding");
-  kThreadManager_QueueThread("Child", kChildThread);
+  kThreadManager_QueueThread("Child", kChildThread, KTHREAD_STACK_SMALL);
   kThreadManager_Yield();
   DEBUG("kSystemThread: Passed First Yield");
   kThreadManager_Yield();
