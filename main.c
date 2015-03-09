@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "threads.h"
 #include "utility.h"
 
