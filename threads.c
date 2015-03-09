@@ -177,11 +177,6 @@ int kThread_Queue(char* name, kThreadFunc func, int stackSize) {
   thread->stack = calloc(stackSize, 1);
   thread->stackHead = thread->stack + stackSize;
 
-  // Insert a null pointer at the top of the stack, so
-  // that we can a seg fault if we return from the top
-  // level method improperly
-  kThreadManager_Push(thread, 0);
-
   // Construct register state on the stack - REMEMBER -
   // the stack grows DOWN so EIP is the last thing on the
   // stack!
