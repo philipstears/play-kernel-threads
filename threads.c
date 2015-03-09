@@ -26,6 +26,7 @@ typedef struct {
   kThread     threads[KTHREAD_MAX];
   int         lastTid;
   int         runningThreadSlot;
+  int         lastIssuedSlot;
 } kThreadManagerState;
 
 /* Global Vars */
@@ -39,8 +40,19 @@ extern void kThread_Next_Core(void* stackHead);
 /* Implementation */
 
 static int kThreadManager_FindAvailableSlot() {
-  for ( int i = 0; i < KTHREAD_MAX; i++ ) {
-    if (gThreadManagerState->threads[i].tid == INVALID_THREAD_ID) {
+  int lastIssuedSlot = ++gThreadManagerState->lastIssuedSlot;
+  kThread* threads = gThreadManagerState->threads;
+
+  // Look for available slots after the last issued slot
+  for(int i = lastIssuedSlot + 1; i < KTHREAD_MAX; i++) {
+    if(threads[i].tid == INVALID_THREAD_ID) {
+      return i;
+    }
+  }
+
+  // Look for threads before the last issued slot
+  for(int i = 0; i < lastIssuedSlot; i++) {
+    if(threads[i].tid == INVALID_THREAD_ID) {
       return i;
     }
   }
@@ -114,6 +126,7 @@ static void inline kThreadManager_Push(kThread* thread, intptr_t value) {
 kThreadInitResult kThreadManager_Initialize() {
   gThreadManagerState = (kThreadManagerState*)calloc(1, sizeof(kThreadManagerState));
   gThreadManagerState->runningThreadSlot = -1;
+  gThreadManagerState->lastIssuedSlot = -1;
   if (gThreadManagerState == 0) {
     DEBUG("Failed to initialize thread state");
     return kThreadInitResult_Fail;
@@ -161,6 +174,8 @@ int kThread_Queue(char* name, kThreadFunc func, int stackSize) {
     DEBUG("Unable to find free slot");
     return -1;
   }
+
+  gThreadManagerState->lastIssuedSlot = slotIndex;
 
   int tid = ++gThreadManagerState->lastTid;
 
