@@ -9,6 +9,8 @@
 #include "threads.h"
 #include "utility.h"
 
+/* Structs */
+
 typedef struct {
   // NOTE: tid zero is reserved for the idle process and never
   //       appears in the thread list, therefore we use tid zero
@@ -26,7 +28,15 @@ typedef struct {
   int         runningThreadSlot;
 } kThreadManagerState;
 
+/* Global Vars */
+
 kThreadManagerState* gThreadManagerState;
+
+/* Externs */
+
+extern void kThread_Next_Core(void* stackHead);
+
+/* Implementation */
 
 static int kThreadManager_FindAvailableSlot() {
   for ( int i = 0; i < KTHREAD_MAX; i++ ) {
@@ -137,21 +147,7 @@ void kThreadManager_Next() {
 
   gThreadManagerState->runningThreadSlot = nextThreadSlotIndex;
 
-  asm("\
-      mov %%eax, %%esp; \
-      popl %%edi; \
-      popl %%esi; \
-      popl %%ebp; \
-      popl %%edx; \
-      popl %%ecx; \
-      popl %%ebx; \
-      popl %%eax; \
-      ret; \
-      "
-      : // we have no outputs
-      : "a"(nextThread->stackHead)
-      : // We clobber everything, but GCC doesn't need to know that
-     );
+  kThread_Next_Core(nextThread->stackHead);
 
   // If we get here, something is seriously screwed!
   DEBUG("Gosh darn everything, we really oughn't to be here dear");
