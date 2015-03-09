@@ -6,10 +6,7 @@ global kThread_Next_Core
 extern kThread_Yield_Core
 
 kThread_Yield:
-  push eax
   push ebx
-  push ecx
-  push edx
   push ebp
   push esi
   push edi
@@ -22,8 +19,5 @@ kThread_Next_Core:
   pop edi
   pop esi
   pop ebp
-  pop edx
-  pop ecx
   pop ebx
-  pop eax
   ret

@@ -84,7 +84,7 @@ static void kThreadManager_InvokeThread() {
   kThreadFunc threadFunc;
 
   asm(""
-      : "=a"(thread), "=b"(threadFunc)
+      : "=S"(thread), "=D"(threadFunc)
       :
       :
      );
@@ -181,13 +181,10 @@ int kThread_Queue(char* name, kThreadFunc func, int stackSize) {
   // the stack grows DOWN so EIP is the last thing on the
   // stack!
   /* EIP */ kThreadManager_Push(thread, (intptr_t)&kThreadManager_InvokeThread);
-  /* EAX */ kThreadManager_Push(thread, (intptr_t)thread);
-  /* EBX */ kThreadManager_Push(thread, (intptr_t)func);
-  /* ECX */ kThreadManager_Push(thread, 0);
-  /* EDX */ kThreadManager_Push(thread, 0);
+  /* EBX */ kThreadManager_Push(thread, 0);
   /* EBP */ kThreadManager_Push(thread, 0);
-  /* ESI */ kThreadManager_Push(thread, 0);
-  /* EDI */ kThreadManager_Push(thread, 0);
+  /* ESI */ kThreadManager_Push(thread, (intptr_t)thread);
+  /* EDI */ kThreadManager_Push(thread, (intptr_t)func);
 
   return thread->tid;
 }
